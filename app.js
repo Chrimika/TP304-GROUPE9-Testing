@@ -1,3 +1,4 @@
+// app.js
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -10,12 +11,9 @@ app.use(cors());
 app.use(express.json());
 
 // Connexion MongoDB
-mongoose.connect('mongodb://localhost:27017/vehicleDB', { 
-  useNewUrlParser: true, 
-  useUnifiedTopology: true 
-})
-.then(() => console.log('Connected to MongoDB'))
-.catch(err => console.error('MongoDB connection error:', err));
+mongoose.connect('mongodb://localhost:27017/vehicleDB')
+  .then(() => console.log('Connected to MongoDB'))
+  .catch(err => console.error('MongoDB connection error:', err));
 
 // Routes
 app.get('/vehicles', async (req, res) => {
@@ -50,8 +48,8 @@ app.post('/vehicles', async (req, res) => {
 app.put('/vehicles/:id', async (req, res) => {
   try {
     const updatedVehicle = await Vehicle.findByIdAndUpdate(
-      req.params.id, 
-      req.body, 
+      req.params.id,
+      req.body,
       { new: true }
     );
     if (!updatedVehicle) return res.status(404).json({ message: 'Vehicle not found' });
@@ -71,8 +69,4 @@ app.delete('/vehicles/:id', async (req, res) => {
   }
 });
 
-// Démarrer le serveur
-const PORT = 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+module.exports = app; // ← important pour les tests
