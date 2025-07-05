@@ -11,7 +11,7 @@ app.use(cors());
 app.use(express.json());
 
 // Connexion MongoDB
-mongoose.connect('mongodb://localhost:27017/vehicleDB')
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/vehicleDB')
   .then(() => console.log('Connected to MongoDB'))
   .catch(err => console.error('MongoDB connection error:', err));
 
