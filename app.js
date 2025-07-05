@@ -5,6 +5,10 @@ const cors = require('cors');
 const Vehicle = require('./models/Vehicle');
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
+const cookieParser = require('cookie-parser');
+const { generateAccessToken, generateRefreshToken } = require('./config/auth');
+const User = require('./models/User');
+const { authenticate, checkRole } = require('./middlewares/auth');
 require('dotenv').config();
 
 const app = express();
@@ -12,6 +16,7 @@ const app = express();
 // Middlewares
 app.use(cors());
 app.use(express.json());
+app.use(cookieParser());
 
 // Configuration Swagger
 const options = {
@@ -268,5 +273,156 @@ app.delete('/vehicles/:id', async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
+
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     User:
+ *       type: object
+ *       required:
+ *         - email
+ *         - password
+ *       properties:
+ *         email:
+ *           type: string
+ *           format: email
+ *           example: user@example.com
+ *         password:
+ *           type: string
+ *           example: user123
+ *         role:
+ *           type: string
+ *           enum: [user, admin]
+ *           example: user
+ */
+
+/**
+ * @swagger
+ * /register:
+ *   post:
+ *     summary: Inscription d'un nouvel utilisateur
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/User'
+ *     responses:
+ *       201:
+ *         description: Utilisateur créé avec succès
+ *       400:
+ *         description: Erreur de validation ou autre
+ */
+
+app.post('/register', async (req, res) => {
+  try {
+    const user = new User(req.body);
+    await user.save();
+    res.status(201).json({ message: 'Utilisateur créé' });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+/**
+ * @swagger
+ * /login:
+ *   post:
+ *     summary: Connexion d'un utilisateur
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/User'
+ *     responses:
+ *       200:
+ *         description: Connexion réussie
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 accessToken:
+ *                   type: string
+ *                 role:
+ *                   type: string
+ *                   example: admin
+ *       401:
+ *         description: Identifiants incorrects
+ */
+
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+  const user = await User.findOne({ email });
+  if (!user || !(await bcrypt.compare(password, user.password))) {
+    return res.status(401).json({ error: 'Email ou mot de passe incorrect' });
+  }
+
+  const accessToken = generateAccessToken(user);
+  const refreshToken = generateRefreshToken(user);
+
+  res.cookie('refreshToken', refreshToken, { httpOnly: true, secure: true, sameSite: 'strict' });
+  res.json({ accessToken, role: user.role });
+});
+
+/**
+ * @swagger
+ * /refresh-token:
+ *   post:
+ *     summary: Rafraîchissement du token d'accès
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: Nouveau token généré
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 accessToken:
+ *                   type: string
+ *       401:
+ *         description: Token manquant
+ *       403:
+ *         description: Token invalide
+ */
+app.post('/refresh-token', (req, res) => {
+  const refreshToken = req.cookies.refreshToken;
+  if (!refreshToken) return res.status(401).json({ error: 'Refresh token manquant' });
+
+  jwt.verify(refreshToken, REFRESH_TOKEN_SECRET, (err, decoded) => {
+    if (err) return res.status(403).json({ error: 'Refresh token invalide' });
+    const newAccessToken = generateAccessToken({ _id: decoded.userId });
+    res.json({ accessToken: newAccessToken });
+  });
+});
+
+
+/*
+pour proter des routes
+
+// Route publique
+app.get('/vehicles', async (req, res) => {
+  // ... (code existant)
+});
+
+// Routes protégées
+app.post('/vehicles', authenticate, checkRole('admin'), async (req, res) => {
+  // Seul un admin peut créer un véhicule
+});
+
+app.put('/vehicles/:id', authenticate, checkRole('admin'), async (req, res) => {
+  // Seul un admin peut modifier un véhicule
+});
+
+app.delete('/vehicles/:id', authenticate, checkRole('admin'), async (req, res) => {
+  // Seul un admin peut supprimer un véhicule
+});
+*/
 
 module.exports = app; // ← important pour les tests
