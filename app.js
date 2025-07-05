@@ -3,6 +3,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const Vehicle = require('./models/Vehicle');
+require('dotenv').config();
+
 
 const app = express();
 
@@ -11,7 +13,7 @@ app.use(cors());
 app.use(express.json());
 
 // Connexion MongoDB
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/vehicleDB')
+mongoose.connect('mongodb://admin:admin123@mongo:27017/vehicleDB?authSource=admin')
   .then(() => console.log('Connected to MongoDB'))
   .catch(err => console.error('MongoDB connection error:', err));
 
